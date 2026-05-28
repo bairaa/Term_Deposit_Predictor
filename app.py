@@ -296,8 +296,11 @@ def get_priority_tier(prob, artifacts):
 
     cfg       = artifacts.get("priority_config", {})
     threshold = cfg.get("threshold", artifacts.get("best_threshold", 0.5))
-    q_hot     = cfg.get("q_hot",  threshold + 0.2)
-    q_warm    = cfg.get("q_warm", threshold + 0.1)
+    # Fallback: estimasi kuantil 33%/67% dalam rentang [threshold, 1.0]
+    default_q_warm = threshold + (1.0 - threshold) * 0.333
+    default_q_hot  = threshold + (1.0 - threshold) * 0.667
+    q_hot  = cfg.get("q_hot",  default_q_hot)
+    q_warm = cfg.get("q_warm", default_q_warm)
 
     if prob >= q_hot:
         return "Tingkat 1 \u2014 Tinggi", cfg
@@ -330,7 +333,7 @@ st.markdown(f"""
 if artifacts:
     meta       = artifacts.get("metadata", {})
     model_name = meta.get("model_name", "LightGBM")
-    f6_test    = meta.get("f6_test", None)
+    f6_test    = meta.get("f6_test") or meta.get("f6_cv_mean", None)
     roc_auc    = meta.get("roc_auc_test", None)
     threshold  = artifacts.get("best_threshold",
                     artifacts.get("priority_config", {}).get("threshold", 0.5))
@@ -348,11 +351,12 @@ with c1:
       <div class="sub">+ Under-sampling</div>
     </div>""", unsafe_allow_html=True)
 with c2:
+    f6_label = "Test Set" if meta.get("f6_test") else "CV-Mean (OOF)"
     f6_disp = f"{f6_test:.4f}" if f6_test else "—"
     st.markdown(f"""<div class="metric-card">
       <div class="label">F6 Score</div>
       <div class="value">{f6_disp}</div>
-      <div class="sub">Test Set</div>
+      <div class="sub">{f6_label}</div>
     </div>""", unsafe_allow_html=True)
 with c3:
     auc_disp = f"{roc_auc:.4f}" if roc_auc else "—"
@@ -669,7 +673,7 @@ with info_col:
     st.markdown('<div class="section-title">📌 Prediktor Kunci</div>', unsafe_allow_html=True)
     for feat, desc, color in [
         ("poutcome = success",         "~65% conversion rate",         "#2da86a"),
-        ("Euribor3m rendah (<2%)",     "Kondisi ideal kampanye",       "#2563eb"),
+        ("Makro lemah (nr.employed↓)", "Prediktor dominan (SHAP #1)",  "#2563eb"),
         ("Pernah dihubungi sebelumnya","Nasabah 'warm lead'",          "#7c3aed"),
         ("Bulan: Mar, Sep, Oct, Dec",  "Timing optimal kampanye",      "#c9a84c"),
         ("Contact: cellular",          "Lebih efektif vs telephone",   "#0891b2"),
